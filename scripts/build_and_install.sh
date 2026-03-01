@@ -56,6 +56,13 @@ fi
 export JAVA_HOME="$JAVA_HOME_21"
 export PATH="$JAVA_HOME/bin:$PATH"
 
+# ── Ensure local.properties has sdk.dir ───────────────────────────────────────
+LOCAL_PROPS="$PROJECT_ROOT/local.properties"
+if [ ! -f "$LOCAL_PROPS" ] || ! grep -q "^sdk.dir=" "$LOCAL_PROPS" 2>/dev/null; then
+    echo "sdk.dir=$ANDROID_SDK" >> "$LOCAL_PROPS"
+    echo "==> Wrote sdk.dir to local.properties"
+fi
+
 # ── Build ─────────────────────────────────────────────────────────────────────
 echo "==> Building GhostKey ($MODE)..."
 echo "    Java:   $(java -version 2>&1 | head -1)"
