@@ -1,0 +1,34 @@
+# Android / Gradle
+.gradle/
+build/
+*.apk
+*.aab
+*.ap_
+*.dex
+local.properties
+*.jks
+*.keystore
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+*.orig
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Gemma model files (never commit)
+*.bin
+*.gguf
+*.tflite
+app/src/main/assets/models/
+
+# Kotlin
+*.class
+
+# Logs
+*.log
