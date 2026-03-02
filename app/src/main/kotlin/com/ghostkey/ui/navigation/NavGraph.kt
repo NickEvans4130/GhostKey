@@ -1,6 +1,9 @@
 package com.ghostkey.ui.navigation
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,8 +28,15 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun GhostKeyNavGraph(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Screen.Dashboard.route) {
+fun GhostKeyNavGraph(
+    navController: NavHostController,
+    contentPadding: PaddingValues = PaddingValues()
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Dashboard.route,
+        modifier = Modifier.padding(contentPadding)
+    ) {
         composable(Screen.Dashboard.route) {
             DashboardScreen(navController = navController)
         }

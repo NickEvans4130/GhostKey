@@ -3,8 +3,8 @@ package com.ghostkey.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -27,6 +27,7 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             GhostKeyTheme {
@@ -79,6 +80,6 @@ private fun GhostKeyApp(navController: NavHostController) {
             }
         }
     ) { innerPadding ->
-        GhostKeyNavGraph(navController = navController)
+        GhostKeyNavGraph(navController = navController, contentPadding = innerPadding)
     }
 }

@@ -24,21 +24,22 @@ fun ProfileListScreen(
     val profiles by viewModel.profiles.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
 
-    // Auto-sync from GhostID on first load when there are no profiles
+    // Auto-sync from GhostID on first entry
     LaunchedEffect(Unit) {
         viewModel.syncFromGhostId()
     }
 
+    // Outer Box — fills space provided by NavHost (which already has scaffold insets applied)
     Box(modifier = Modifier.fillMaxSize()) {
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                // Leave bottom room for FAB
-                .padding(bottom = 88.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(top = 16.dp)
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp)
         ) {
+
+            // Header row: title + refresh button
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -53,56 +54,56 @@ fun ProfileListScreen(
                         Icon(Icons.Default.Refresh, contentDescription = "Sync from GhostID")
                     }
                 }
-
-                // Sync status banner
-                when (val s = syncState) {
-                    is GhostIdSyncState.Syncing -> {
-                        Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        Text(
-                            "Syncing from GhostID...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                    is GhostIdSyncState.Success -> {
-                        if (s.imported > 0) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "Imported ${s.imported} profile${if (s.imported > 1) "s" else ""} from GhostID",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    is GhostIdSyncState.Unavailable -> {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "GhostID unavailable — create profiles manually",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    else -> {}
-                }
-
-                Spacer(Modifier.height(8.dp))
             }
 
+            // Sync status
+            item {
+                when (val s = syncState) {
+                    is GhostIdSyncState.Syncing -> {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text(
+                            "Syncing from GhostID…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    is GhostIdSyncState.Success -> if (s.imported > 0) {
+                        Text(
+                            "Imported ${s.imported} profile${if (s.imported > 1) "s" else ""} from GhostID",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    is GhostIdSyncState.Unavailable -> Text(
+                        "GhostID unavailable — create profiles manually",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    else -> Spacer(Modifier.height(4.dp))
+                }
+            }
+
+            // Empty state
             if (profiles.isEmpty() && syncState !is GhostIdSyncState.Syncing) {
                 item {
                     Text(
-                        "No profiles yet. Tap + to create one or sync from GhostID.",
+                        "No profiles yet. Tap + to create one or tap the refresh icon to sync from GhostID.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
 
+            // Profile cards
             items(profiles, key = { it.id }) { profile ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
                     onClick = { navController.navigate(Screen.ProfileEditor.createRoute(profile.id)) }
                 ) {
                     Row(
@@ -114,8 +115,8 @@ fun ProfileListScreen(
                             Text(
                                 buildString {
                                     append("Formality: ${(profile.formalityLevel * 100).toInt()}%")
-                                    append(" | ${profile.spellingVariant.name.lowercase()}")
-                                    profile.personaNationality?.let { append(" | $it") }
+                                    append(" · ${profile.spellingVariant.name.lowercase()}")
+                                    profile.personaNationality?.let { append(" · $it") }
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -134,12 +135,12 @@ fun ProfileListScreen(
             }
         }
 
-        // FAB clear of the outer bottom nav bar
+        // FAB — aligned to bottom-end of the content area (nav bar padding already consumed above)
         FloatingActionButton(
             onClick = { navController.navigate(Screen.ProfileEditor.createRoute("new")) },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 16.dp)
+                .padding(16.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "Create profile")
         }
