@@ -92,6 +92,11 @@ class KeyboardView @JvmOverloads constructor(
     private var keys: List<Key> = emptyList()
     private var pressedKeyIndex: Int = -1
 
+    init {
+        // Hardware-accelerated canvas for smooth redraws
+        setLayerType(LAYER_TYPE_HARDWARE, null)
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
         layout = KeyboardLayout(w, keyHeight, keySpacing, rowPadding)
@@ -157,6 +162,10 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     // ── Touch ─────────────────────────────────────────────────────────────────
+    //
+    // Keys fire on ACTION_DOWN (same as GBoard) for immediate response. The
+    // pressed highlight stays until ACTION_UP/CANCEL so users can see which key
+    // registered. Secondary pointers also fire on their own DOWN event.
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val pIdx = event.actionIndex
@@ -167,11 +176,13 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 val idx = findKeyAt(x, y)
                 pressedKeyIndex = idx
-                if (idx >= 0) haptic()
+                if (idx >= 0) {
+                    haptic()
+                    dispatchKey(keys[idx])
+                }
                 invalidate()
             }
 
-            // Secondary finger down — fire immediately (no up tracking for extra pointers)
             MotionEvent.ACTION_POINTER_DOWN -> {
                 val idx = findKeyAt(x, y)
                 if (idx >= 0) {
@@ -181,7 +192,7 @@ class KeyboardView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_MOVE -> {
-                // Update visual highlight as finger slides
+                // Keep visual highlight tracking the current finger position
                 val idx = findKeyAt(event.x, event.y)
                 if (idx != pressedKeyIndex) {
                     pressedKeyIndex = idx
@@ -189,16 +200,9 @@ class KeyboardView @JvmOverloads constructor(
                 }
             }
 
-            MotionEvent.ACTION_UP -> {
-                val idx = findKeyAt(x, y)
-                if (idx >= 0) dispatchKey(keys[idx])
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 pressedKeyIndex = -1
                 invalidate()
-            }
-
-            MotionEvent.ACTION_POINTER_UP -> {
-                val idx = findKeyAt(x, y)
-                if (idx >= 0) dispatchKey(keys[idx])
             }
 
             MotionEvent.ACTION_CANCEL -> {

@@ -7,7 +7,6 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import com.ghostkey.data.alias.AliasCache
 import com.ghostkey.util.dpToPx
 
 class AliasBarView @JvmOverloads constructor(
@@ -22,16 +21,13 @@ class AliasBarView @JvmOverloads constructor(
     }
 
     var listener: AliasBarListener? = null
-    var activeAlias: AliasCache? = null
-        set(value) {
-            field = value
-            invalidate()
-        }
+
+    /** Display name of the active alias (e.g. "Rowan Anderson"). Null shows "No alias". */
+    var activeAliasName: String? = null
+        set(value) { field = value; invalidate() }
+
     var isStyleActive: Boolean = true
-        set(value) {
-            field = value
-            invalidate()
-        }
+        set(value) { field = value; invalidate() }
 
     private val barHeight    = context.dpToPx(48)
     private val avatarRadius = context.dpToPx(14).toFloat()
@@ -53,16 +49,8 @@ class AliasBarView @JvmOverloads constructor(
         color = 0xFFE6EDF3.toInt()
         textSize = context.dpToPx(14).toFloat()
     }
-    private val chevronPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF8B949E.toInt()
-        textSize = context.dpToPx(11).toFloat()
-    }
-    private val activeDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF58A6FF.toInt()
-    }
-    private val inactiveDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF30363D.toInt()
-    }
+    private val activeDotPaint   = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF58A6FF.toInt() }
+    private val inactiveDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF30363D.toInt() }
     private val styleOnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF58A6FF.toInt()
         textSize = context.dpToPx(12).toFloat()
@@ -73,7 +61,7 @@ class AliasBarView @JvmOverloads constructor(
     }
     private val settingsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF8B949E.toInt()
-        textSize = context.dpToPx(12).toFloat()
+        textSize = context.dpToPx(18).toFloat()
         textAlign = Paint.Align.RIGHT
     }
     private val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -82,8 +70,8 @@ class AliasBarView @JvmOverloads constructor(
     }
 
     // Touch regions updated each draw pass
-    private var aliasTapBounds   = RectF()
-    private var styleTapBounds   = RectF()
+    private var aliasTapBounds    = RectF()
+    private var styleTapBounds    = RectF()
     private var settingsTapBounds = RectF()
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -98,11 +86,11 @@ class AliasBarView @JvmOverloads constructor(
 
         val cy = h / 2f
 
-        // ── Settings gear (right) ─────────────────────────────────────────────
-        val settingsLabel = "\u2699"  // ⚙
+        // ── Settings (right) ─────────────────────────────────────────────────
+        val settingsLabel = "\u2699"
         canvas.drawText(settingsLabel, w - hPad, cy + settingsPaint.textSize / 3f, settingsPaint)
-        val settingsW = settingsPaint.measureText(settingsLabel) + hPad * 1.5f
-        settingsTapBounds = RectF(w - settingsW, 0f, w, h)
+        val settingsBlockW = settingsPaint.measureText(settingsLabel) + hPad * 2f
+        settingsTapBounds = RectF(w - settingsBlockW, 0f, w, h)
 
         // ── Style toggle (right-centre) ───────────────────────────────────────
         val styleLabel = if (isStyleActive) "Style ON" else "Style OFF"
@@ -116,35 +104,35 @@ class AliasBarView @JvmOverloads constructor(
         val styleStartX  = settingsEdge - styleBlockW - hPad
 
         canvas.drawCircle(styleStartX + dotRadius, cy, dotRadius, dotPaint)
-        canvas.drawText(styleLabel, styleStartX + dotDiameter + context.dpToPx(4), cy + stylePaint.textSize / 3f, stylePaint)
+        canvas.drawText(
+            styleLabel,
+            styleStartX + dotDiameter + context.dpToPx(4),
+            cy + stylePaint.textSize / 3f,
+            stylePaint
+        )
         styleTapBounds = RectF(styleStartX - hPad, 0f, settingsEdge, h)
 
         // ── Avatar + alias name (left) ────────────────────────────────────────
         val avatarCx = hPad + avatarRadius
         canvas.drawCircle(avatarCx, cy, avatarRadius, avatarBgPaint)
-
-        val initials = initials(activeAlias?.aliasName)
         canvas.drawText(
-            initials,
+            initials(activeAliasName),
             avatarCx,
             cy + avatarTextPaint.textSize / 3f,
             avatarTextPaint
         )
 
         val nameX = avatarCx + avatarRadius + context.dpToPx(8)
-        val aliasLabel = activeAlias?.aliasName ?: "No alias"
-        val chevron = "  \u25BE"  // ▾
-        val nameAvailable = styleStartX - hPad - nameX
-        val clippedName = clipText(aliasLabel + chevron, aliasNamePaint, nameAvailable)
-        canvas.drawText(clippedName, nameX, cy + aliasNamePaint.textSize / 3f, aliasNamePaint)
+        val label = (activeAliasName ?: "No alias") + "  \u25BE"
+        val nameAvailW = styleStartX - hPad - nameX
+        canvas.drawText(clipText(label, aliasNamePaint, nameAvailW), nameX, cy + aliasNamePaint.textSize / 3f, aliasNamePaint)
 
         aliasTapBounds = RectF(0f, 0f, styleStartX - hPad, h)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked != MotionEvent.ACTION_UP) return true
-        val x = event.x
-        val y = event.y
+        val x = event.x; val y = event.y
         when {
             settingsTapBounds.contains(x, y) -> listener?.onSettingsTapped()
             styleTapBounds.contains(x, y)    -> listener?.onStyleToggleTapped()
