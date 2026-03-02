@@ -97,6 +97,7 @@ class GhostKeyIME : InputMethodService() {
     // Never go fullscreen — prevents system from overlaying its own IME chrome
     override fun onEvaluateFullscreenMode(): Boolean = false
 
+
     override fun onCreateInputView(): View {
         // Solid opaque window so no other keyboard shows through
         window?.window?.let { win ->
@@ -126,7 +127,7 @@ class GhostKeyIME : InputMethodService() {
         suggestionStripView = SuggestionStripView(this).also { content.addView(it) }
 
         keyboardView = KeyboardView(this).apply {
-            keyListener = keyListener
+            keyListener = keyboardKeyListener
             state = keyboardState
         }.also { content.addView(it) }
 
@@ -152,7 +153,8 @@ class GhostKeyIME : InputMethodService() {
         override fun onSettingsTapped() = openCompanionApp()
     }
 
-    private val keyListener = object : KeyboardView.KeyListener {
+    // Named differently from KeyboardView.keyListener to avoid shadowing in apply { }
+    private val keyboardKeyListener = object : KeyboardView.KeyListener {
         override fun onKey(key: Key) = handleKey(key)
         override fun onShiftTap() = handleShift()
         override fun onBackspace() = handleBackspace()

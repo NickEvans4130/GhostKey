@@ -119,5 +119,5 @@ class KeyboardLayout(
         } else label
 
     fun totalHeight(): Int =
-        ALPHA_ROWS.size * keyHeight + (ALPHA_ROWS.size + 1) * keySpacing + rowPadding * 2
+        ALPHA_ROWS.size * keyHeight + (ALPHA_ROWS.size - 1) * keySpacing + rowPadding * 2
 }
