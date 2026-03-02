@@ -3,11 +3,12 @@ package com.ghostkey.ime.suggestion
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import com.ghostkey.util.dpToPx
 
-// Canvas-drawn suggestion strip — full implementation in feature/tier1-wired
 class SuggestionStripView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
@@ -27,8 +28,13 @@ class SuggestionStripView @JvmOverloads constructor(
             invalidate()
         }
 
-    private val height = context.dpToPx(40)
-    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0D1117.toInt() }
+    private val stripHeight = context.dpToPx(40)
+    private val hPad = context.dpToPx(12).toFloat()
+    private val gap  = context.dpToPx(24).toFloat()
+
+    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF0D1117.toInt()
+    }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFE6EDF3.toInt()
         textSize = context.dpToPx(13).toFloat()
@@ -46,46 +52,105 @@ class SuggestionStripView @JvmOverloads constructor(
         strokeWidth = 1f
     }
 
+    // Touch regions updated each draw pass
+    private var tier2ButtonBounds = RectF()
+    private val wordBounds = mutableListOf<Pair<RectF, String>>()
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), height)
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), stripHeight)
     }
 
     override fun onDraw(canvas: Canvas) {
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
-        canvas.drawLine(0f, height - 1f, width.toFloat(), height - 1f, dividerPaint)
+        val h = stripHeight.toFloat()
+        val w = width.toFloat()
+        canvas.drawRect(0f, 0f, w, h, bgPaint)
+        canvas.drawLine(0f, h - 1f, w, h - 1f, dividerPaint)
 
-        val cy = height / 2f - (textPaint.descent() + textPaint.ascent()) / 2
+        val cy = h / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
 
-        // Tier 2 button on right
+        // ── Tier 2 button (right side) ────────────────────────────────────────
         val tier2Label = when (state.tier2Status) {
-            is Tier2Status.Loading -> "* ..."
-            is Tier2Status.Ready -> "* Apply"
-            else -> "* Rewrite"
+            is Tier2Status.Loading -> "... Rewriting"
+            is Tier2Status.Ready   -> "Apply \u2713"
+            else                   -> "\u2605 Rewrite"
         }
-        val tier2X = width - accentPaint.measureText(tier2Label) - context.dpToPx(12)
-        canvas.drawText(tier2Label, tier2X, cy, accentPaint)
+        val tier2Paint = accentPaint
+        val tier2W = tier2Paint.measureText(tier2Label)
+        val tier2X = w - tier2W - hPad
+        canvas.drawText(tier2Label, tier2X, cy, tier2Paint)
+        tier2ButtonBounds = RectF(tier2X - hPad / 2, 0f, w, h)
 
-        // Divider before tier 2 button
-        canvas.drawLine(tier2X - context.dpToPx(8), 8f, tier2X - context.dpToPx(8), height - 8f, dividerPaint)
+        // Divider before tier 2 area
+        val divX = tier2X - hPad
+        canvas.drawLine(divX, 8f, divX, h - 8f, dividerPaint)
 
-        // Transform preview or warning in centre
+        // ── Content area (left of divider) ────────────────────────────────────
+        wordBounds.clear()
+        val contentRight = divX - hPad
+
         val centreItem = state.transformItems.firstOrNull()
         if (centreItem != null) {
+            // Transform preview or flag warning — centred
             val label = when (centreItem) {
                 is SuggestionItem.TransformPreview ->
-                    "${centreItem.original} -> ${centreItem.transformed}"
-                is SuggestionItem.Warning -> "! ${centreItem.flag.message}"
+                    "${centreItem.original} \u2192 ${centreItem.transformed}"
+                is SuggestionItem.Warning ->
+                    "\u26A0 ${centreItem.flag.message}"
                 else -> ""
             }
             val paint = if (centreItem is SuggestionItem.Warning) warningPaint else textPaint
-            canvas.drawText(label, width / 2f, cy, paint.apply { textAlign = Paint.Align.CENTER })
+            val maxW = contentRight - hPad
+            val clipped = clipText(label, paint, maxW)
+            canvas.drawText(clipped, contentRight / 2f + hPad, cy, paint.apply {
+                textAlign = Paint.Align.CENTER
+            })
             paint.textAlign = Paint.Align.LEFT
-        } else if (state.wordSuggestions.isNotEmpty()) {
-            var x = context.dpToPx(12).toFloat()
+        } else {
+            // Word suggestions (up to 3), separated by dividers
+            var x = hPad
             state.wordSuggestions.take(3).forEach { word ->
-                canvas.drawText(word, x, cy, textPaint)
-                x += textPaint.measureText(word) + context.dpToPx(24)
+                if (x >= contentRight) return@forEach
+                val tw = textPaint.measureText(word)
+                val clipped = clipText(word, textPaint, contentRight - x)
+                canvas.drawText(clipped, x, cy, textPaint)
+                val bounds = RectF(x - hPad / 2, 0f, x + tw + hPad / 2, h)
+                wordBounds.add(Pair(bounds, word))
+                x += tw + gap
+                if (x < contentRight) {
+                    canvas.drawLine(x - gap / 2, 8f, x - gap / 2, h - 8f, dividerPaint)
+                }
             }
         }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked != MotionEvent.ACTION_UP) return true
+        val x = event.x
+        val y = event.y
+
+        if (tier2ButtonBounds.contains(x, y)) {
+            when (val s = state.tier2Status) {
+                is Tier2Status.Ready -> listener?.onTier2ResultAccepted(s.rewrittenText)
+                is Tier2Status.Idle  -> listener?.onTier2RewriteRequested()
+                is Tier2Status.Error -> listener?.onTier2RewriteRequested()
+                else -> Unit
+            }
+            return true
+        }
+
+        wordBounds.firstOrNull { it.first.contains(x, y) }?.let { (_, word) ->
+            listener?.onWordSuggestionTapped(word)
+        }
+        return true
+    }
+
+    // Clips text to fit within maxWidth, appending "…" if truncated
+    private fun clipText(text: String, paint: Paint, maxWidth: Float): String {
+        if (paint.measureText(text) <= maxWidth) return text
+        val ellipsis = "…"
+        val ellipsisW = paint.measureText(ellipsis)
+        var end = text.length
+        while (end > 0 && paint.measureText(text.substring(0, end)) + ellipsisW > maxWidth) end--
+        return text.substring(0, end) + ellipsis
     }
 }

@@ -24,72 +24,100 @@ class KeyboardLayout(
             listOf("123", ",", " ", ".", "↵")
         )
 
-        val SPACE_ROW_WIDTHS = mapOf(
-            "123" to 1.5f,
-            "," to 1f,
-            " " to 4f,
-            "." to 1f,
-            "↵" to 1.5f
+        // Standard phone-style numeric pad
+        val NUMERIC_ROWS = listOf(
+            listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+            listOf("-", "/", ":", ";", "(", ")", "$", "&", "@", "*"),
+            listOf("#+=", ".", ",", "?", "!", "'", "⌫"),
+            listOf("ABC", " ", "↵")
         )
 
-        private val SPECIAL_KEYS = setOf("⇧", "⌫", "123", "↵", " ")
+        // Extended symbols (accessed via #+= from numeric)
+        val SYMBOL_ROWS = listOf(
+            listOf("[", "]", "{", "}", "#", "%", "^", "*", "+", "="),
+            listOf("_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"),
+            listOf("123", ".", ",", "?", "!", "'", "⌫"),
+            listOf("ABC", " ", "↵")
+        )
+
+        // Keys wider than 1.0 unit — anything not listed defaults to 1.0
+        private val KEY_WIDTHS = mapOf(
+            "⇧"   to 1.5f,
+            "⌫"   to 1.5f,
+            "#+=" to 1.5f,
+            "123" to 1.5f,
+            "ABC" to 1.5f,
+            " "   to 4.0f,
+            "↵"   to 1.5f,
+            ","   to 1.0f,
+            "."   to 1.0f
+        )
+
+        private val SPECIAL_KEYS = setOf("⇧", "⌫", "123", "ABC", "#+=", "↵", " ")
     }
 
     fun buildKeys(mode: KeyboardMode, shiftState: ShiftState): List<Key> {
-        val rows = ALPHA_ROWS
+        val rows = when (mode) {
+            KeyboardMode.ALPHA   -> ALPHA_ROWS
+            KeyboardMode.NUMERIC -> NUMERIC_ROWS
+            KeyboardMode.SYMBOL  -> SYMBOL_ROWS
+        }
+
         val keys = mutableListOf<Key>()
         var y = rowPadding.toFloat()
 
         rows.forEachIndexed { rowIndex, row ->
-            val totalWidth = viewWidth - rowPadding * 2
-            val isSpecialRow = rowIndex == rows.lastIndex
+            val usableWidth = viewWidth - rowPadding * 2
             val numKeys = row.size
-            val totalSpacing = keySpacing * (numKeys - 1)
+            val hasVariableWidth = row.any { it in KEY_WIDTHS }
 
-            if (isSpecialRow) {
-                val totalMultiplier = row.sumOf { (SPACE_ROW_WIDTHS[it] ?: 1f).toDouble() }.toFloat()
-                val unitWidth = (totalWidth - totalSpacing) / totalMultiplier
+            if (hasVariableWidth) {
+                val totalMult = row.sumOf { (KEY_WIDTHS[it] ?: 1f).toDouble() }.toFloat()
+                val totalSpacing = keySpacing * (numKeys - 1)
+                val unitW = (usableWidth - totalSpacing) / totalMult
                 var x = rowPadding.toFloat()
+
                 row.forEach { label ->
-                    val multiplier = SPACE_ROW_WIDTHS[label] ?: 1f
-                    val keyWidth = unitWidth * multiplier
-                    keys.add(
-                        Key(
-                            label = label,
-                            code = label.codePointAt(0),
-                            bounds = RectF(x, y, x + keyWidth, y + keyHeight),
-                            isSpecial = label in SPECIAL_KEYS,
-                            widthMultiplier = multiplier
-                        )
-                    )
-                    x += keyWidth + keySpacing
+                    val mult = KEY_WIDTHS[label] ?: 1f
+                    val kw = unitW * mult
+                    keys.add(Key(
+                        label = shifted(label, mode, shiftState),
+                        code = label.codePointAt(0),
+                        bounds = RectF(x, y, x + kw, y + keyHeight),
+                        isSpecial = label in SPECIAL_KEYS,
+                        widthMultiplier = mult
+                    ))
+                    x += kw + keySpacing
                 }
             } else {
-                val keyWidth = (totalWidth - totalSpacing) / numKeys
-                val rowOffset = if (rowIndex == 1) keyWidth * 0.5f else 0f
-                var x = rowPadding + rowOffset
+                val totalSpacing = keySpacing * (numKeys - 1)
+                val kw = (usableWidth - totalSpacing) / numKeys
+                // QWERTY row 1 (A-row) is inset half a key to centre it visually
+                val offset = if (mode == KeyboardMode.ALPHA && rowIndex == 1) kw * 0.5f else 0f
+                var x = rowPadding + offset
 
                 row.forEach { label ->
-                    val displayLabel = when {
-                        label in SPECIAL_KEYS -> label
-                        shiftState != ShiftState.OFF -> label.uppercase()
-                        else -> label.lowercase()
-                    }
-                    keys.add(
-                        Key(
-                            label = displayLabel,
-                            code = displayLabel.codePointAt(0),
-                            bounds = RectF(x, y, x + keyWidth, y + keyHeight),
-                            isSpecial = label in SPECIAL_KEYS
-                        )
-                    )
-                    x += keyWidth + keySpacing
+                    keys.add(Key(
+                        label = shifted(label, mode, shiftState),
+                        code = label.codePointAt(0),
+                        bounds = RectF(x, y, x + kw, y + keyHeight),
+                        isSpecial = label in SPECIAL_KEYS
+                    ))
+                    x += kw + keySpacing
                 }
             }
+
             y += keyHeight + keySpacing
         }
+
         return keys
     }
 
-    fun totalHeight(): Int = ALPHA_ROWS.size * keyHeight + (ALPHA_ROWS.size + 1) * keySpacing + rowPadding * 2
+    private fun shifted(label: String, mode: KeyboardMode, shiftState: ShiftState): String =
+        if (label !in SPECIAL_KEYS && mode == KeyboardMode.ALPHA) {
+            if (shiftState != ShiftState.OFF) label.uppercase() else label.lowercase()
+        } else label
+
+    fun totalHeight(): Int =
+        ALPHA_ROWS.size * keyHeight + (ALPHA_ROWS.size + 1) * keySpacing + rowPadding * 2
 }

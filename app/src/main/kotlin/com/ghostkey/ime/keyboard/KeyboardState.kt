@@ -9,9 +9,9 @@ data class KeyboardState(
 ) {
     fun withShiftToggled(): KeyboardState = copy(
         shiftState = when (shiftState) {
-            ShiftState.OFF -> ShiftState.SINGLE
-            ShiftState.SINGLE -> ShiftState.CAPS_LOCK
-            ShiftState.CAPS_LOCK -> ShiftState.OFF
+            ShiftState.OFF       -> ShiftState.SINGLE
+            ShiftState.SINGLE    -> ShiftState.OFF  // slow second tap cancels shift
+            ShiftState.CAPS_LOCK -> ShiftState.OFF  // any tap exits caps lock
         }
     )
 

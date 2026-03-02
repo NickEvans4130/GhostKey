@@ -113,6 +113,11 @@ class GhostKeyIME : InputMethodService() {
                 keyboardView?.state = keyboardState
                 return
             }
+            "#+=" -> {
+                keyboardState = keyboardState.copy(mode = KeyboardMode.SYMBOL)
+                keyboardView?.state = keyboardState
+                return
+            }
             "↵" -> {
                 // Respect the field's requested action (Search, Done, Send, etc.)
                 val action = currentInputEditorInfo?.imeOptions
